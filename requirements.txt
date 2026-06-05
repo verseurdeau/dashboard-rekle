@@ -1,6 +1,6 @@
-streamlit
+streamlit==1.45.1
 pandas
 numpy
 plotly
-tensorflow
+tensorflow==2.18.0
 pillow

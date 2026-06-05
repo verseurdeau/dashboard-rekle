@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 from PIL import Image
 import json
+import requests
 
 # Try importing TensorFlow - optional for deployment
 try:
@@ -11,6 +12,11 @@ try:
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False
+
+# Konfigurasi API Model Server
+# Set environment variable atau hardcode untuk production
+MODEL_API_URL = st.secrets.get("MODEL_API_URL", "http://localhost:8000")
+USE_API = True  # Set False untuk menggunakan model lokal
 
 # =====================================
 # CONFIG
@@ -162,24 +168,7 @@ elif menu == "🤖 Prediksi Sampah":
 
     st.title("🤖 Klasifikasi Sampah")
 
-    if not TENSORFLOW_AVAILABLE:
-        st.error(
-            """
-            ⚠️ TensorFlow tidak tersedia di environment ini.
-            
-            Fitur prediksi memerlukan TensorFlow untuk berfungsi.
-            Untuk menggunakan fitur ini:
-            1. Jalankan aplikasi secara lokal dengan: `pip install tensorflow`
-            2. Kemudian jalankan: `streamlit run streamlit_app.py`
-            
-            Di Streamlit Cloud, gunakan fitur Analisis Data untuk melihat dataset.
-            """
-        )
-        st.stop()
-
-    if model is None:
-        st.error("⚠️ Model tidak dapat dimuat. Pastikan file 'best_model.keras' ada di direktori proyek.")
-        st.stop()
+    st.markdown("Upload gambar sampah untuk mendapatkan prediksi klasifikasi dan informasi penanganan.")
 
     uploaded_file = st.file_uploader(
         "Upload gambar sampah",
@@ -190,7 +179,7 @@ elif menu == "🤖 Prediksi Sampah":
 
         image = Image.open(uploaded_file).convert("RGB")
 
-        col1, col2 = st.columns([1,1])
+        col1, col2 = st.columns([1, 1])
 
         with col1:
             st.image(
@@ -199,77 +188,151 @@ elif menu == "🤖 Prediksi Sampah":
                 use_container_width=True
             )
 
-        img = image.resize((224,224))
-
-        img_array = np.array(img)
-
-        img_array = img_array / 255.0
-
-        img_array = np.expand_dims(
-            img_array,
-            axis=0
-        )
-
-        prediction = model.predict(img_array)
-
-        predicted_idx = np.argmax(prediction)
-
-        predicted_class = class_names[predicted_idx]
-
-        confidence = float(np.max(prediction))*100
-
-        metadata = df[
-            df["kelas"].str.lower()
-            ==
-            predicted_class.lower()
-        ]
-
         with col2:
-
-            st.success(
-                f"Prediksi: {predicted_class}"
-            )
-
-            st.metric(
-                "Confidence",
-                f"{confidence:.2f}%"
-            )
-
-            if not metadata.empty:
-
-                metadata = metadata.iloc[0]
-
-                st.info(
-                    f"""
-                    **Kategori Sampah**
-
-                    {metadata['kategori_sampah']}
-                    """
-                )
-
-                st.warning(
-                    f"""
-                    **Risk Level**
-
-                    {metadata['risk_level']}
-                    """
-                )
-
-                st.success(
-                    f"""
-                    **Penanganan**
-
-                    {metadata['penanganan']}
-                    """
-                )
-
-                st.error(
-                    f"""
-                    **Dampak Lingkungan**
-
-                    {metadata['dampak']}
-                    """
-                )
+            # Prediction via API
+            if USE_API:
+                with st.spinner("🔄 Memproses prediksi..."):
+                    try:
+                        # Prepare file untuk API
+                        files = {"file": uploaded_file.getvalue()}
+                        response = requests.post(
+                            f"{MODEL_API_URL}/predict",
+                            files={"file": (uploaded_file.name, uploaded_file.getvalue())},
+                            timeout=30
+                        )
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            
+                            if result.get("success"):
+                                predicted_class = result["class"]
+                                confidence = result["confidence"]
+                                
+                                st.success(f"✅ Prediksi: {predicted_class}")
+                                st.metric("Confidence", f"{confidence:.2f}%")
+                                
+                                # Get metadata dari dataset
+                                metadata = df[
+                                    df["kelas"].str.lower() == predicted_class.lower()
+                                ]
+                                
+                                if not metadata.empty:
+                                    metadata = metadata.iloc[0]
+                                    
+                                    st.info(
+                                        f"""
+                                        **Kategori Sampah**
+                                        
+                                        {metadata['kategori_sampah']}
+                                        """
+                                    )
+                                    
+                                    st.warning(
+                                        f"""
+                                        **Risk Level**
+                                        
+                                        {metadata['risk_level']}
+                                        """
+                                    )
+                                    
+                                    st.success(
+                                        f"""
+                                        **Penanganan**
+                                        
+                                        {metadata['penanganan']}
+                                        """
+                                    )
+                                    
+                                    st.error(
+                                        f"""
+                                        **Dampak Lingkungan**
+                                        
+                                        {metadata['dampak']}
+                                        """
+                                    )
+                            else:
+                                st.error(f"❌ Error: {result.get('detail', 'Unknown error')}")
+                        else:
+                            st.error(f"❌ Server error: {response.status_code}")
+                    
+                    except requests.exceptions.ConnectionError:
+                        st.error(
+                            f"""
+                            ❌ Tidak bisa menghubungi Model Server.
+                            
+                            Pastikan server berjalan di: {MODEL_API_URL}
+                            
+                            Untuk test lokal:
+                            ```bash
+                            cd model_server
+                            python -m uvicorn app:app --reload
+                            ```
+                            """
+                        )
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+            
+            # Fallback: Local prediction jika TensorFlow tersedia
+            else:
+                if not TENSORFLOW_AVAILABLE or model is None:
+                    st.error("⚠️ Model tidak tersedia (TensorFlow tidak terinstall)")
+                    st.stop()
+                
+                try:
+                    img = image.resize((224, 224))
+                    img_array = np.array(img, dtype=np.float32)
+                    img_array = img_array / 255.0
+                    img_array = np.expand_dims(img_array, axis=0)
+                    
+                    prediction = model.predict(img_array, verbose=0)
+                    predicted_idx = np.argmax(prediction)
+                    predicted_class = class_names[str(predicted_idx)]
+                    confidence = float(np.max(prediction)) * 100
+                    
+                    st.success(f"✅ Prediksi: {predicted_class}")
+                    st.metric("Confidence", f"{confidence:.2f}%")
+                    
+                    metadata = df[
+                        df["kelas"].str.lower() == predicted_class.lower()
+                    ]
+                    
+                    if not metadata.empty:
+                        metadata = metadata.iloc[0]
+                        
+                        st.info(
+                            f"""
+                            **Kategori Sampah**
+                            
+                            {metadata['kategori_sampah']}
+                            """
+                        )
+                        
+                        st.warning(
+                            f"""
+                            **Risk Level**
+                            
+                            {metadata['risk_level']}
+                            """
+                        )
+                        
+                        st.success(
+                            f"""
+                            **Penanganan**
+                            
+                            {metadata['penanganan']}
+                            """
+                        )
+                        
+                        st.error(
+                            f"""
+                            **Dampak Lingkungan**
+                            
+                            {metadata['dampak']}
+                            """
+                        )
+                
+                except Exception as e:
+                    st.error(f"Error prediksi: {e}")
 
 # =====================================
 # ANALISIS DATA

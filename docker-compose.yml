@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # FastAPI Model Server
+  model-server:
+    build:
+      context: ./model_server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./model_server:/app
+      - ./best_model.keras:/app/best_model.keras
+      - ./class_names.json:/app/class_names.json
+    environment:
+      - TF_CPP_MIN_LOG_LEVEL=2
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Dashboard
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - MODEL_API_URL=http://model-server:8000
+    depends_on:
+      - model-server
+    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0

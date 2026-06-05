@@ -1,10 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 import plotly.express as px
 from PIL import Image
 import json
+
+# Try importing TensorFlow - optional for deployment
+try:
+    import tensorflow as tf
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
 
 # =====================================
 # CONFIG
@@ -23,17 +29,31 @@ st.set_page_config(
 
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("best_model.keras")
+    if not TENSORFLOW_AVAILABLE:
+        return None
+    try:
+        return tf.keras.models.load_model("best_model.keras")
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("dataset_tabular_clean.csv")
+    try:
+        return pd.read_csv("dataset_tabular_clean.csv")
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return None
 
 model = load_model()
 df = load_data()
 
-with open("class_names.json", "r") as f:
-    class_names = json.load(f)
+try:
+    with open("class_names.json", "r") as f:
+        class_names = json.load(f)
+except Exception as e:
+    st.error(f"Error loading class names: {e}")
+    class_names = {}
 
 # =====================================
 # SIDEBAR
@@ -62,6 +82,11 @@ st.sidebar.markdown(
     - **About REKLE**: informasi teknologi dan fitur.
     """
 )
+
+# Check if data and model loaded successfully
+if df is None or df.empty:
+    st.error("⚠️ Dataset tidak dapat dimuat. Pastikan file 'dataset_tabular_clean.csv' ada di direktori proyek.")
+    st.stop()
 
 # =====================================
 # HOME
@@ -136,6 +161,25 @@ if menu == "🏠 Home":
 elif menu == "🤖 Prediksi Sampah":
 
     st.title("🤖 Klasifikasi Sampah")
+
+    if not TENSORFLOW_AVAILABLE:
+        st.error(
+            """
+            ⚠️ TensorFlow tidak tersedia di environment ini.
+            
+            Fitur prediksi memerlukan TensorFlow untuk berfungsi.
+            Untuk menggunakan fitur ini:
+            1. Jalankan aplikasi secara lokal dengan: `pip install tensorflow`
+            2. Kemudian jalankan: `streamlit run streamlit_app.py`
+            
+            Di Streamlit Cloud, gunakan fitur Analisis Data untuk melihat dataset.
+            """
+        )
+        st.stop()
+
+    if model is None:
+        st.error("⚠️ Model tidak dapat dimuat. Pastikan file 'best_model.keras' ada di direktori proyek.")
+        st.stop()
 
     uploaded_file = st.file_uploader(
         "Upload gambar sampah",

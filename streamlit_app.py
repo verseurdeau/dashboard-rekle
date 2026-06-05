@@ -134,163 +134,282 @@ elif menu == "📊 Analisis Data":
 
     st.title("📊 Analisis Dataset")
 
-    st.markdown("Data interaktif dengan filter untuk mengeksplorasi kategori, dampak, dan risiko sampah.")
+    st.markdown("Analisis mendalam dataset REKLE sesuai pertanyaan bisnis: dampak lingkungan, metode penanganan, dan keseimbangan data.")
 
-    kategori_filter = st.multiselect(
-        "Filter Kategori Sampah",
-        options=sorted(df["kategori_sampah"].dropna().unique()),
-        default=sorted(df["kategori_sampah"].dropna().unique())
-    )
+    # Tabs untuk pertanyaan bisnis
+    tab1, tab2, tab3 = st.tabs([
+        "❓ Pertanyaan 1: Dampak Lingkungan",
+        "❓ Pertanyaan 2: Metode Penanganan",
+        "❓ Pertanyaan 3: Keseimbangan Data"
+    ])
 
-    risk_filter = st.multiselect(
-        "Filter Risk Level",
-        options=sorted(df["risk_level"].dropna().unique()),
-        default=sorted(df["risk_level"].dropna().unique())
-    )
+    # ========== PERTANYAAN 1: DAMPAK LINGKUNGAN ==========
+    with tab1:
+        st.subheader("Pertanyaan 1: Bagaimana distribusi dampak lingkungan pada setiap kategori sampah?")
+        
+        st.markdown("""
+        **Tujuan:** Memahami jenis dampak lingkungan yang ditimbulkan oleh setiap kategori sampah 
+        dan hubungan antara kategori sampah dengan tingkat risikonya.
+        """)
 
-    filtered_df = df[
-        (df["kategori_sampah"].isin(kategori_filter))
-        &
-        (df["risk_level"].isin(risk_filter))
-    ]
+        st.markdown("---")
 
-    total_filtered = len(filtered_df)
-    filtered_kelas = filtered_df["kelas"].nunique()
-    filtered_risiko = filtered_df["risk_level"].nunique()
+        # Distribusi dampak keseluruhan
+        col1, col2 = st.columns(2)
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Data Dipilih", f"{total_filtered:,}")
-    m2.metric("Kelas Terpilih", filtered_kelas)
-    m3.metric("Tingkat Risiko", filtered_risiko)
+        with col1:
+            st.markdown("#### Distribusi Dampak Lingkungan (Keseluruhan)")
+            dampak_count = (
+                df["dampak"]
+                .value_counts()
+                .reset_index()
+            )
+            dampak_count.columns = ["Dampak", "Jumlah"]
+            
+            fig_dampak = px.bar(
+                dampak_count,
+                x="Jumlah",
+                y="Dampak",
+                orientation="h",
+                color="Jumlah",
+                color_continuous_scale="Blues",
+                title="Total Data per Dampak"
+            )
+            st.plotly_chart(fig_dampak, use_container_width=True)
 
-    st.markdown("---")
+        with col2:
+            st.markdown("#### Risk Level Distribution")
+            risk_count = (
+                df["risk_level"]
+                .value_counts()
+                .reset_index()
+            )
+            risk_count.columns = ["Risk Level", "Jumlah"]
+            risk_order = ["Rendah", "Sedang", "Tinggi"]
+            risk_count["Risk Level"] = pd.Categorical(risk_count["Risk Level"], categories=risk_order, ordered=True)
+            risk_count = risk_count.sort_values("Risk Level")
+            
+            fig_risk = px.bar(
+                risk_count,
+                x="Risk Level",
+                y="Jumlah",
+                color="Risk Level",
+                color_discrete_map={"Rendah": "#90EE90", "Sedang": "#FFD700", "Tinggi": "#FF6B6B"},
+                title="Distribusi Tingkat Risiko"
+            )
+            st.plotly_chart(fig_risk, use_container_width=True)
 
-    st.subheader("Distribusi Kelas Sampah")
+        # Heatmap: Dampak × Kategori Sampah
+        st.markdown("---")
+        st.markdown("#### Heatmap: Dampak Lingkungan × Kategori Sampah")
+        
+        dampak_kategori_cross = pd.crosstab(
+            df["kategori_sampah"],
+            df["dampak"]
+        )
+        
+        fig_heatmap1 = px.imshow(
+            dampak_kategori_cross,
+            labels=dict(x="Dampak Lingkungan", y="Kategori Sampah", color="Jumlah"),
+            color_continuous_scale="YlOrRd",
+            text_auto=True,
+            title="Heatmap: Dampak Lingkungan per Kategori Sampah"
+        )
+        
+        fig_heatmap1.update_layout(height=500)
+        st.plotly_chart(fig_heatmap1, use_container_width=True)
 
-    kelas_count = (
-        filtered_df["kelas"]
-        .value_counts()
-        .reset_index()
-    )
+        st.markdown("""
+        **Insight:**
+        - Setiap kategori sampah memiliki dampak lingkungan yang berbeda sesuai karakteristik materialnya
+        - Kategori **Organik** didominasi oleh dampak "Menghasilkan bau jika menumpuk"
+        - Kategori **B3 dan Medis** memiliki dampak paling serius: "Beracun dan berbahaya" dan "Menyebabkan penyakit"
+        - Sampah **anorganik** (Plastik, Kaca, Logam, dll) memiliki dampak jangka panjang berupa pencemaran dan penumpukan limbah
+        """)
 
-    kelas_count.columns = [
-        "Kelas",
-        "Jumlah"
-    ]
+    # ========== PERTANYAAN 2: METODE PENANGANAN ==========
+    with tab2:
+        st.subheader("Pertanyaan 2: Bagaimana distribusi metode penanganan dan kategori mana yang paling memerlukan pengelolaan khusus?")
+        
+        st.markdown("""
+        **Tujuan:** Mengidentifikasi metode penanganan untuk setiap kategori sampah 
+        dan menemukan kategori yang membutuhkan perhatian khusus.
+        """)
 
-    fig1 = px.bar(
-        kelas_count,
-        x="Kelas",
-        y="Jumlah",
-        color="Kelas",
-        title="Jumlah per Kelas Sampah",
-        labels={"Jumlah": "Total", "Kelas": "Kategori"}
-    )
+        st.markdown("---")
 
-    kategori_count = (
-        filtered_df["kategori_sampah"]
-        .value_counts()
-        .reset_index()
-    )
+        # Alert untuk kategori khusus
+        col1, col2 = st.columns(2)
 
-    kategori_count.columns = [
-        "Kategori",
-        "Jumlah"
-    ]
+        with col1:
+            st.warning("""
+            ⚠️ **KATEGORI YANG MEMERLUKAN PENGELOLAAN KHUSUS**
+            
+            - **B3 (Limbah Berbahaya)**: Memerlukan pembuangan ke tempat pengolahan limbah B3
+            - **Medis**: Memerlukan sterilisasi dan pemusnahan khusus
+            
+            Kedua kategori ini memiliki risiko tertinggi terhadap kesehatan dan lingkungan!
+            """)
 
-    fig2 = px.pie(
-        kategori_count,
-        names="Kategori",
-        values="Jumlah",
-        hole=0.4,
-        title="Proporsi Kategori Sampah"
-    )
+        with col2:
+            b3_data = len(df[df["kelas"] == "B3"])
+            medis_data = len(df[df["kelas"] == "medis"])
+            st.info(f"""
+            📊 **Jumlah Data:**
+            
+            - B3: {b3_data:,} data ({b3_data/len(df)*100:.1f}%)
+            - Medis: {medis_data:,} data ({medis_data/len(df)*100:.1f}%)
+            """)
 
-    col1, col2 = st.columns(2)
-    col1.plotly_chart(fig1, use_container_width=True)
-    col2.plotly_chart(fig2, use_container_width=True)
+        # Distribusi penanganan keseluruhan
+        st.markdown("---")
+        st.markdown("#### Distribusi Metode Penanganan (Keseluruhan)")
 
-    st.markdown("---")
+        penanganan_count = (
+            df["penanganan"]
+            .value_counts()
+            .reset_index()
+        )
+        penanganan_count.columns = ["Penanganan", "Jumlah"]
 
-    st.subheader("Distribusi Dampak Lingkungan")
+        fig_penanganan = px.bar(
+            penanganan_count,
+            x="Jumlah",
+            y="Penanganan",
+            orientation="h",
+            color="Jumlah",
+            color_continuous_scale="Greens",
+            title="Total Data per Metode Penanganan"
+        )
+        st.plotly_chart(fig_penanganan, use_container_width=True)
 
-    dampak_count = (
-        filtered_df["dampak"]
-        .value_counts()
-        .reset_index()
-    )
+        # Heatmap: Penanganan × Kategori Sampah
+        st.markdown("---")
+        st.markdown("#### Heatmap: Metode Penanganan × Kategori Sampah")
 
-    dampak_count.columns = [
-        "Dampak",
-        "Jumlah"
-    ]
+        penanganan_kategori_cross = pd.crosstab(
+            df["kategori_sampah"],
+            df["penanganan"]
+        )
 
-    fig3 = px.bar(
-        dampak_count,
-        x="Dampak",
-        y="Jumlah"
-    )
+        fig_heatmap2 = px.imshow(
+            penanganan_kategori_cross,
+            labels=dict(x="Metode Penanganan", y="Kategori Sampah", color="Jumlah"),
+            color_continuous_scale="Teal",
+            text_auto=True,
+            title="Heatmap: Metode Penanganan per Kategori Sampah"
+        )
 
-    st.plotly_chart(
-        fig3,
-        use_container_width=True
-    )
+        fig_heatmap2.update_layout(height=500)
+        st.plotly_chart(fig_heatmap2, use_container_width=True)
 
-    st.subheader("Distribusi Metode Penanganan")
+        st.markdown("""
+        **Insight:**
+        - **Organik**: Seluruhnya ditangani melalui pengolahan menjadi kompos
+        - **Anorganik**: Didominasi oleh berbagai metode daur ulang (kerajinan, bahan baku, dll)
+        - **B3 & Medis**: Memiliki metode penanganan khusus yang berbeda dari sampah lainnya
+        - Identifikasi jenis sampah secara akurat sangat penting untuk penanganan yang tepat
+        """)
 
-    penanganan_count = (
-        filtered_df["penanganan"]
-        .value_counts()
-        .reset_index()
-    )
+    # ========== PERTANYAAN 3: KESEIMBANGAN DATA ==========
+    with tab3:
+        st.subheader("Pertanyaan 3: Apakah distribusi data representatif dan seimbang untuk model klasifikasi optimal?")
+        
+        st.markdown("""
+        **Tujuan:** Mengevaluasi keseimbangan distribusi data antar kategori 
+        dan memastikan representasi yang memadai untuk pelatihan model.
+        """)
 
-    penanganan_count.columns = [
-        "Penanganan",
-        "Jumlah"
-    ]
+        st.markdown("---")
 
-    fig4 = px.bar(
-        penanganan_count,
-        x="Penanganan",
-        y="Jumlah"
-    )
+        # Data balance analysis
+        kelas_dist = df["kelas"].value_counts().reset_index()
+        kelas_dist.columns = ["Kelas", "Jumlah"]
+        kelas_dist["Persentase"] = (kelas_dist["Jumlah"] / len(df) * 100).round(2)
+        kelas_dist = kelas_dist.sort_values("Jumlah", ascending=False)
 
-    st.plotly_chart(
-        fig4,
-        use_container_width=True
-    )
+        col1, col2 = st.columns(2)
 
-    st.subheader("Distribusi Risk Level")
+        with col1:
+            st.markdown("#### Distribusi Data per Kelas Sampah")
+            fig_dist = px.bar(
+                kelas_dist,
+                x="Kelas",
+                y="Jumlah",
+                color="Jumlah",
+                color_continuous_scale="Viridis",
+                title="Total Data per Kelas"
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
 
-    risk_count = (
-        filtered_df["risk_level"]
-        .value_counts()
-        .reset_index()
-    )
+        with col2:
+            st.markdown("#### Proporsi Kategori Sampah")
+            fig_pie = px.pie(
+                kelas_dist,
+                names="Kelas",
+                values="Jumlah",
+                title="Proporsi Data Keseluruhan"
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
 
-    risk_count.columns = [
-        "Risk Level",
-        "Jumlah"
-    ]
+        # Tabel detail distribusi
+        st.markdown("---")
+        st.markdown("#### Tabel Detail Distribusi Data")
+        
+        display_df = kelas_dist.copy()
+        display_df.columns = ["Kelas", "Jumlah", "Persentase (%)"]
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-    fig5 = px.bar(
-        risk_count,
-        x="Risk Level",
-        y="Jumlah",
-        color="Risk Level",
-        title="Jumlah per Risk Level",
-        labels={"Jumlah": "Total", "Risk Level": "Tingkat Risiko"}
-    )
+        # Analisis keseimbangan
+        st.markdown("---")
+        st.markdown("#### Analisis Keseimbangan Data")
 
-    st.plotly_chart(
-        fig5,
-        use_container_width=True
-    )
+        total_data = len(df)
+        nonsampah_pct = (len(df[df["kelas"] == "nonsampah"]) / total_data * 100)
+        min_class = kelas_dist["Jumlah"].min()
+        max_class = kelas_dist["Jumlah"].max()
+        imbalance_ratio = max_class / min_class
 
-    st.markdown("---")
-    st.subheader("Tabel Data Filter")
-    with st.expander("Lihat data hasil filter"):
-        st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Total Data",
+            f"{total_data:,}"
+        )
+
+        col2.metric(
+            "Jumlah Kategori",
+            f"{len(kelas_dist)}"
+        )
+
+        col3.metric(
+            "Data Terbanyak",
+            f"{max_class:,}",
+            f"({nonsampah_pct:.1f}%)"
+        )
+
+        col4.metric(
+            "Imbalance Ratio",
+            f"{imbalance_ratio:.2f}x",
+            "Data terbanyak vs terkecil"
+        )
+
+        st.warning(f"""
+        ⚠️ **CATATAN KESEIMBANGAN DATA**
+        
+        - **Kategori Nonsampah** mendominasi dengan {nonsampah_pct:.1f}% dari total dataset
+        - Ratio ketidakseimbangan: {imbalance_ratio:.2f}x (kategori terbanyak vs terkecil)
+        - Semua kategori memiliki ≥ 1.000 data, cukup untuk pelatihan model
+        - **Rekomendasi**: Gunakan metrik Precision, Recall, F1-Score untuk evaluasi model
+        """)
+
+        st.success("""
+        ✅ **KESIMPULAN**
+        
+        Dataset REKLE memiliki representasi yang cukup baik untuk semua kategori. 
+        Meskipun tidak sepenuhnya seimbang, setiap kategori memiliki data yang memadai 
+        untuk mendukung pengembangan model klasifikasi yang optimal.
+        """)
 
 # =====================================
 # MODEL PERFORMANCE

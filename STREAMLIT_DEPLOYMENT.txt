@@ -1,0 +1,84 @@
+## 🎯 Pengembangan via Streamlit & Deployment
+
+### Integrasi Kode Python dengan Streamlit
+
+Streamlit memungkinkan developer Python untuk mengintegrasikan kode machine learning secara langsung tanpa perlu memahami web development yang kompleks. Dalam REKLE, file `streamlit_app.py` berperan sebagai entry point aplikasi yang mengkoordinasikan seluruh logika bisnis. Struktur dasar Streamlit menggunakan paradigma linear top-to-bottom execution, di mana setiap kali user berinteraksi dengan widget (upload file, klik button, dll), script dijalankan ulang dari awal.
+
+Komponen Integrasi Utama:
+
+1. Configuration (st.set_page_config) - Mengatur metadata halaman seperti title, icon, dan layout sebelum komponen lain di-render.
+
+2. Data Loading & Caching (@st.cache_data) - Decorator ini mengoptimalkan performa dengan menyimpan hasil fungsi di memori, sehingga dataset dan model tidak perlu di-load ulang setiap run cycle. Di REKLE, ini digunakan untuk dataset CSV dan model TensorFlow.
+
+3. User Interface Components - Streamlit menyediakan widget interaktif seperti st.sidebar.radio() untuk navigasi, st.file_uploader() untuk upload gambar, st.write() untuk menampilkan output, dan st.plotly_chart() untuk visualisasi data menggunakan Plotly.
+
+4. State Management - Streamlit secara otomatis mengelola session state, memungkinkan aplikasi untuk mengingat input pengguna antar reruns tanpa perlu database eksternal.
+
+5. API Integration - Kode Python di Streamlit dapat dengan mudah membuat HTTP requests ke backend API (FastAPI Model Server) menggunakan library `requests`, memisahkan UI logic dari ML inference logic untuk scalability dan maintainability.
+
+Integrasi ini membuat developer dapat fokus pada business logic daripada infrastructure complexity, mempercepat time-to-market dari konsep ke production.
+
+### Proses Deployment ke Streamlit Cloud
+
+Streamlit Cloud adalah platform cloud yang dikelola langsung oleh Streamlit Inc, memungkinkan deployment aplikasi Streamlit dengan zero configuration. Proses deployment REKLE ke Streamlit Cloud mengikuti workflow berikut:
+
+TAHAP 1: Persiapan Repository GitHub
+- Kode REKLE disimpan di GitHub repository public (verseurdeau/dashboard-rekle)
+- File requirements.txt harus selalu up-to-date dengan semua dependencies yang dibutuhkan
+- File .streamlit/secrets.toml (jika ada) tidak di-commit ke GitHub; secrets di-manage melalui Streamlit Cloud dashboard
+
+TAHAP 2: Koneksi ke Streamlit Cloud
+- Sign in ke https://share.streamlit.io dengan akun GitHub
+- Klik "Create app" → pilih repository (dashboard-rekle) → branch (main) → main file path (streamlit_app.py)
+- Streamlit Cloud secara otomatis meng-clone repository, menginstall dependencies dari requirements.txt, dan menjalankan aplikasi
+
+TAHAP 3: Konfigurasi Environment & Secrets
+- Di Streamlit Cloud dashboard, navigasi ke "Settings" → "Secrets"
+- Tambahkan environment variable MODEL_API_URL yang berisi URL dari Model Server (contoh: https://your-app.railway.app)
+- Secrets di-encrypt dan hanya accessible di dalam aplikasi, tidak di-expose ke GitHub
+
+TAHAP 4: Deployment & Auto-Updates
+- Aplikasi langsung accessible di URL https://<app-name>.streamlit.app
+- Setiap push ke branch main di GitHub, Streamlit Cloud otomatis meng-update aplikasi tanpa manual intervention (CI/CD terintegrasi)
+- Logs dan error messages dapat dimonitor langsung melalui dashboard
+
+Keuntungan Deployment via Streamlit Cloud:
+
+- Zero Infrastructure Management - Tidak perlu setup server, database, atau container orchestration
+- Automatic Scaling - Streamlit Cloud secara otomatis scale resources sesuai traffic
+- HTTPS by Default - Aplikasi langsung dilindungi dengan SSL/TLS encryption
+- Custom Domain Support - Bisa menggunakan custom domain untuk aplikasi (contoh: rekle.mycompany.com)
+- Collaboration Features - Dapat sharing link dengan pemangku kepentingan untuk instant feedback
+- Free Tier - Deployment gratis dengan resource limitation yang fair untuk production-level applications
+
+### Best Practices untuk Development & Deployment
+
+1. Version Control - Gunakan Git untuk tracking setiap perubahan kode, memudahkan rollback jika ada issue
+
+2. Requirements Management - Selalu update requirements.txt dan model_server/requirements.txt setelah menambah dependencies
+
+3. Secrets Management - Jangan commit secrets ke GitHub; gunakan .env untuk local development dan Streamlit Secrets untuk production
+
+4. Testing - Jalankan streamlit run streamlit_app.py secara lokal sebelum push ke repository
+
+5. Monitoring - Cek Streamlit Cloud logs secara berkala untuk error dan performance metrics
+
+6. Documentation - Maintain README dan deployment guide agar tim dapat easily troubleshoot issues
+
+---
+
+## 💡 Mengapa Streamlit?
+
+Streamlit dipilih sebagai framework dashboard REKLE karena beberapa keuntungan utama: 
+
+(1) Rapid Development - memungkinkan membuat aplikasi web interaktif hanya dengan Python, tanpa perlu HTML/CSS/JavaScript, sempurna untuk data scientist dan ML engineer
+
+(2) Easy Deployment - bisa di-deploy langsung ke Streamlit Cloud dari GitHub atau di-containerize dengan Docker untuk berbagai platform (Railway, Google Cloud Run, dll)
+
+(3) Built-in Visualization - widget interaktif dan integrasi Plotly memudahkan membuat dashboard yang engaging dan real-time
+
+(4) Performance Optimization - fitur caching (@st.cache_data) mengoptimalkan performa untuk aplikasi ML yang compute-heavy
+
+(5) Perfect for ML Projects - framework ini dirancang khusus untuk ML workflow, ideal untuk sistem klasifikasi seperti REKLE
+
+Dengan arsitektur dua-tier yang memisahkan UI dari model inference, REKLE dapat di-scale dan di-maintain dengan mudah.

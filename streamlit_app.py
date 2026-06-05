@@ -2,21 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from PIL import Image
-import json
-import requests
-
-# Try importing TensorFlow - optional for deployment
-try:
-    import tensorflow as tf
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-
-# Konfigurasi API Model Server
-# Set environment variable atau hardcode untuk production
-MODEL_API_URL = st.secrets.get("MODEL_API_URL", "http://localhost:8000")
-USE_API = True  # Set False untuk menggunakan model lokal
 
 # =====================================
 # CONFIG
@@ -33,16 +18,6 @@ st.set_page_config(
 # LOAD DATA
 # =====================================
 
-@st.cache_resource
-def load_model():
-    if not TENSORFLOW_AVAILABLE:
-        return None
-    try:
-        return tf.keras.models.load_model("best_model.keras")
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None
-
 @st.cache_data
 def load_data():
     try:
@@ -51,15 +26,7 @@ def load_data():
         st.error(f"Error loading data: {e}")
         return None
 
-model = load_model()
 df = load_data()
-
-try:
-    with open("class_names.json", "r") as f:
-        class_names = json.load(f)
-except Exception as e:
-    st.error(f"Error loading class names: {e}")
-    class_names = {}
 
 # =====================================
 # SIDEBAR
@@ -71,7 +38,6 @@ menu = st.sidebar.radio(
     "Navigasi",
     [
         "🏠 Home",
-        "🤖 Prediksi Sampah",
         "📊 Analisis Data",
         "📈 Model Performance",
         "📋 About REKLE"
@@ -82,7 +48,6 @@ st.sidebar.markdown(
     """
     ### Panduan
     - **Home**: ringkasan data, kategori, dan model.
-    - **Prediksi Sampah**: unggah gambar untuk klasifikasi.
     - **Analisis Data**: visualisasi distribusi dan filter interaktif.
     - **Model Performance**: metrik evaluasi dan laporan klasifikasi.
     - **About REKLE**: informasi teknologi dan fitur.
@@ -161,182 +126,9 @@ if menu == "🏠 Home":
         st.dataframe(df.head(10), use_container_width=True)
 
 # =====================================
-# PREDIKSI
-# =====================================
-
-elif menu == "🤖 Prediksi Sampah":
-
-    st.title("🤖 Klasifikasi Sampah")
-
-    st.markdown("Upload gambar sampah untuk mendapatkan prediksi klasifikasi dan informasi penanganan.")
-
-    uploaded_file = st.file_uploader(
-        "Upload gambar sampah",
-        type=["jpg", "jpeg", "png"]
-    )
-
-    if uploaded_file:
-
-        image = Image.open(uploaded_file).convert("RGB")
-
-        col1, col2 = st.columns([1, 1])
-
-        with col1:
-            st.image(
-                image,
-                caption="Gambar yang diupload",
-                use_container_width=True
-            )
-
-        with col2:
-            # Prediction via API
-            if USE_API:
-                with st.spinner("🔄 Memproses prediksi..."):
-                    try:
-                        # Prepare file untuk API
-                        files = {"file": uploaded_file.getvalue()}
-                        response = requests.post(
-                            f"{MODEL_API_URL}/predict",
-                            files={"file": (uploaded_file.name, uploaded_file.getvalue())},
-                            timeout=30
-                        )
-                        
-                        if response.status_code == 200:
-                            result = response.json()
-                            
-                            if result.get("success"):
-                                predicted_class = result["class"]
-                                confidence = result["confidence"]
-                                
-                                st.success(f"✅ Prediksi: {predicted_class}")
-                                st.metric("Confidence", f"{confidence:.2f}%")
-                                
-                                # Get metadata dari dataset
-                                metadata = df[
-                                    df["kelas"].str.lower() == predicted_class.lower()
-                                ]
-                                
-                                if not metadata.empty:
-                                    metadata = metadata.iloc[0]
-                                    
-                                    st.info(
-                                        f"""
-                                        **Kategori Sampah**
-                                        
-                                        {metadata['kategori_sampah']}
-                                        """
-                                    )
-                                    
-                                    st.warning(
-                                        f"""
-                                        **Risk Level**
-                                        
-                                        {metadata['risk_level']}
-                                        """
-                                    )
-                                    
-                                    st.success(
-                                        f"""
-                                        **Penanganan**
-                                        
-                                        {metadata['penanganan']}
-                                        """
-                                    )
-                                    
-                                    st.error(
-                                        f"""
-                                        **Dampak Lingkungan**
-                                        
-                                        {metadata['dampak']}
-                                        """
-                                    )
-                            else:
-                                st.error(f"❌ Error: {result.get('detail', 'Unknown error')}")
-                        else:
-                            st.error(f"❌ Server error: {response.status_code}")
-                    
-                    except requests.exceptions.ConnectionError:
-                        st.error(
-                            f"""
-                            ❌ Tidak bisa menghubungi Model Server.
-                            
-                            Pastikan server berjalan di: {MODEL_API_URL}
-                            
-                            Untuk test lokal:
-                            ```bash
-                            cd model_server
-                            python -m uvicorn app:app --reload
-                            ```
-                            """
-                        )
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-            
-            # Fallback: Local prediction jika TensorFlow tersedia
-            else:
-                if not TENSORFLOW_AVAILABLE or model is None:
-                    st.error("⚠️ Model tidak tersedia (TensorFlow tidak terinstall)")
-                    st.stop()
-                
-                try:
-                    img = image.resize((224, 224))
-                    img_array = np.array(img, dtype=np.float32)
-                    img_array = img_array / 255.0
-                    img_array = np.expand_dims(img_array, axis=0)
-                    
-                    prediction = model.predict(img_array, verbose=0)
-                    predicted_idx = np.argmax(prediction)
-                    predicted_class = class_names[str(predicted_idx)]
-                    confidence = float(np.max(prediction)) * 100
-                    
-                    st.success(f"✅ Prediksi: {predicted_class}")
-                    st.metric("Confidence", f"{confidence:.2f}%")
-                    
-                    metadata = df[
-                        df["kelas"].str.lower() == predicted_class.lower()
-                    ]
-                    
-                    if not metadata.empty:
-                        metadata = metadata.iloc[0]
-                        
-                        st.info(
-                            f"""
-                            **Kategori Sampah**
-                            
-                            {metadata['kategori_sampah']}
-                            """
-                        )
-                        
-                        st.warning(
-                            f"""
-                            **Risk Level**
-                            
-                            {metadata['risk_level']}
-                            """
-                        )
-                        
-                        st.success(
-                            f"""
-                            **Penanganan**
-                            
-                            {metadata['penanganan']}
-                            """
-                        )
-                        
-                        st.error(
-                            f"""
-                            **Dampak Lingkungan**
-                            
-                            {metadata['dampak']}
-                            """
-                        )
-                
-                except Exception as e:
-                    st.error(f"Error prediksi: {e}")
-
-# =====================================
 # ANALISIS DATA
 # =====================================
+
 
 elif menu == "📊 Analisis Data":
 

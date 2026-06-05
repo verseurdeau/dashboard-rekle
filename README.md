@@ -6,14 +6,25 @@ A simple Streamlit app template for you to modify!
 
 ### How to run it on your own machine
 
-1. Install the requirements
+1. Create and activate the virtual environment (if not already created):
 
-   ```
-   $ pip install -r requirements.txt
+   ```bash
+   cd /workspaces/dashboard-rekle
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
 
-2. Run the app
+2. Install the requirements:
 
+   ```bash
+   pip install -r requirements.txt
    ```
-   $ streamlit run streamlit_app.py
+
+3. Run the app with the same environment:
+
+   ```bash
+   streamlit run streamlit_app.py
    ```
+
+> Jika kamu menggunakan VS Code, pilih interpreter Python:
+> `/workspaces/dashboard-rekle/.venv/bin/python`
